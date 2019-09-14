@@ -1,12 +1,13 @@
 lock-check
 ==========
 
-Verify that all the packages in your package-lock.json file exist
+Verify that all the packages in your package-lock.json file exist.
+
+This tool is for when you're using a repository other than NPM such as Artifactory where packages can become corrupted or URLs mangled.
 
 [![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
-[![Version](https://img.shields.io/npm/v/lock-check.svg)](https://npmjs.org/package/@maccuaa/lock-check)
-[![Downloads/week](https://img.shields.io/npm/dw/lock-check.svg)](https://npmjs.org/package/@maccuaa/lock-check)
-[![License](https://img.shields.io/npm/l/lock-check.svg)](https://github.com/maccuaa/lock-check/blob/master/package.json)
+[![Version](https://badgen.net/npm/v/@maccuaa/lock-check)](https://npmjs.org/package/@maccuaa/lock-check)
+[![Bundle Size](https://badgen.net/bundlephobia/minzip/@maccuaa/lock-check)](https://npmjs.org/package/@maccuaa/lock-check)
 
 <!-- toc -->
 
