@@ -1,5 +1,5 @@
 {
-  "name": "lock-check",
+  "name": "@maccuaa/lock-check",
   "description": "Verify that all the packages in your package-lock.json file exist",
   "version": "1.0.0",
   "author": "Andrew MacCuaig <andrewmaccuaig@gmail.com>",

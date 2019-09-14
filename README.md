@@ -1,6 +1,12 @@
 lock-check
 ==========
 
+### Install
+
+```shell
+npm i -g @maccuaa/lock-check
+```
+
 Verify that all the packages in your package-lock.json file exist
 
 [![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
