@@ -6,6 +6,7 @@
   "bin": {
     "lock-check": "./bin/run"
   },
+  "preferGlobal": true,
   "bugs": "https://github.com/maccuaa/lock-check/issues",
   "dependencies": {
     "@oclif/command": "^1.5.19",
