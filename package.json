@@ -1,0 +1,46 @@
+{
+  "name": "lock-check",
+  "description": "Verify that all the packages in your package-lock.json file exist",
+  "version": "1.0.0",
+  "author": "Andrew MacCuaig <andrewmaccuaig@gmail.com>",
+  "bin": {
+    "lock-check": "./bin/run"
+  },
+  "bugs": "https://github.com/maccuaa/lock-check/issues",
+  "dependencies": {
+    "@oclif/command": "^1.5.19",
+    "@oclif/config": "^1.13.3",
+    "@oclif/plugin-help": "^2.2.1",
+    "execa": "^2.0.4",
+    "listr": "^0.14.3",
+    "tslib": "^1.10.0"
+  },
+  "devDependencies": {
+    "@types/listr": "^0.14.2",
+    "@types/node": "^10.14.18",
+    "ts-node": "^8.3.0",
+    "typescript": "^3.6.3"
+  },
+  "engines": {
+    "node": ">=8.0.0"
+  },
+  "files": [
+    "/bin",
+    "/lib"
+  ],
+  "homepage": "https://github.com/maccuaa/lock-check",
+  "keywords": [
+    "oclif"
+  ],
+  "license": "ISC",
+  "main": "lib/index.js",
+  "oclif": {
+    "bin": "lock-check"
+  },
+  "repository": "maccuaa/lock-check",
+  "scripts": {
+    "prepack": "rm -rf lib && tsc -b",
+    "test": "echo NO TESTS"
+  },
+  "types": "lib/index.d.ts"
+}
