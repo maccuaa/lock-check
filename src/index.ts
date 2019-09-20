@@ -2,7 +2,8 @@ import { Command, flags } from "@oclif/command";
 import * as path from "path";
 import * as fs from "fs";
 import * as execa from "execa";
-import * as Listr from "listr";
+import * as Ora from "ora";
+import * as Async from "async";
 
 const fsa = (path: fs.PathLike, mode: number = fs.constants.R_OK) => {
   return new Promise((resolve, reject) => {
@@ -20,12 +21,23 @@ interface PackageLock {
   lockfileVersion: number;
   requires: boolean;
   dependencies: {
-    [depName: string]: {
+    [name: string]: {
       version: string;
       resolved: string;
       integrity: string;
     };
   };
+}
+
+interface Context {
+  projectPath: string;
+  packageLockPath: string;
+  packageLock: PackageLock | null;
+}
+
+interface Task {
+  title: string;
+  task: (ctx: Context, task: Task) => Promise<void>;
 }
 
 class LockCheck extends Command {
@@ -45,7 +57,7 @@ class LockCheck extends Command {
     }
   ];
 
-  private getTarballUrl = async (dep: string) => {
+  private checkRemoteURL = async (dep: string) => {
     const { stdout: tarballUrl } = await execa.command(
       `npm view ${dep} dist.tarball`
     );
@@ -55,17 +67,42 @@ class LockCheck extends Command {
     }
   };
 
+  private checkLocalURL = (packageLock: PackageLock, dep: string) => {
+    const { dependencies } = packageLock;
+
+    const dependency = dependencies[dep];
+
+    if (!dependency) {
+      throw new Error(`${dep} not found in package-lock.json`);
+    }
+
+    const resolvedURL = dependency.resolved;
+
+    if (!resolvedURL.endsWith(".tgz")) {
+      throw new Error(
+        `package-lock entry does not end in .tgz - ${resolvedURL}`
+      );
+    }
+  };
+
+  private checkPackage = async (
+    packageLock: PackageLock,
+    dependency: string
+  ) => {
+    this.checkLocalURL(packageLock, dependency);
+
+    await this.checkRemoteURL(dependency);
+  };
+
   async run() {
     const { args } = this.parse(LockCheck);
 
-    const tasks = new Listr([
+    const spinner = Ora();
+
+    const tasks: Task[] = [
       {
-        title: `Looking for package-lock.json`,
-        task: async (ctx: {
-          projectPath: string;
-          packageLockPath: string;
-          packageLock: PackageLock | null;
-        }) => {
+        title: "Looking for package-lock.json",
+        task: async ctx => {
           const filePath = path.resolve(ctx.projectPath, "package-lock.json");
 
           await fsa(filePath);
@@ -75,65 +112,72 @@ class LockCheck extends Command {
       },
       {
         title: "Reading package-lock.json",
-        task: async (ctx: {
-          projectPath: string;
-          packageLockPath: string;
-          packageLock: PackageLock | null;
-        }) => {
+        task: async ctx => {
           ctx.packageLock = await import(ctx.packageLockPath);
         }
       },
       {
         title: "Scanning package-lock.json",
-        task: async ctx => {
-          const { packageLock } = ctx;
+        task: async (ctx, task) => {
+          return new Promise((resolve, reject) => {
+            const { packageLock } = ctx;
 
-          if (packageLock === null) {
-            return;
-          }
-
-          const packages = Object.keys(packageLock.dependencies);
-
-          const nextTenPackages = packages.splice(0, 10);
-
-          const packageToTask = (dependency: string) => ({
-            title: dependency,
-            task: async () => {
-              const resolvedURL = packageLock.dependencies[dependency].resolved;
-
-              if (!resolvedURL.endsWith(".tgz")) {
-                throw new Error(
-                  `package-lock entry does not end in .tgz - ${resolvedURL}`
-                );
-              }
-
-              await this.getTarballUrl(dependency);
-
-              if (packages.length > 0) {
-                const nextPackage = packages.splice(0, 1)[0];
-                tasks.add(packageToTask(nextPackage));
-              }
+            if (packageLock === null) {
+              reject("packageLock is null");
+              return;
             }
-          });
 
-          const tasks = new Listr(nextTenPackages.map(packageToTask), {
-            exitOnError: false
-          });
+            const packages = Object.keys(packageLock.dependencies);
 
-          return tasks;
+            let completed = 0;
+            const total = packages.length;
+
+            const q = Async.queue(async (dependency: string) => {
+              if (!spinner.isSpinning) {
+                spinner.start();
+              }
+              try {
+                await this.checkPackage(packageLock, dependency);
+              } catch (e) {
+                throw e;
+              } finally {
+                completed++;
+                spinner.text = `${task.title} - ${Math.round(
+                  (completed / total) * 100
+                )}%`;
+              }
+            }, 10);
+
+            q.error((err, task) => {
+              spinner.fail(`${task} - ${err}`);
+            });
+
+            q.drain(() => resolve());
+
+            q.push(packages);
+          });
         }
       }
-    ]);
+    ];
 
-    tasks
-      .run({
-        projectPath: path.resolve(args.dir),
-        packageLockPath: "",
-        packageLock: null
-      })
-      .catch(() => {
-        // ignore
-      });
+    const ctx = {
+      projectPath: path.resolve(args.dir),
+      packageLockPath: "",
+      packageLock: null
+    };
+
+    for (let task of tasks) {
+      spinner.text = task.title;
+      spinner.start();
+
+      try {
+        await task.task(ctx, task);
+        spinner.succeed();
+      } catch (e) {
+        spinner.fail();
+        break;
+      }
+    }
   }
 }
 
