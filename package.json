@@ -33,14 +33,15 @@
   },
   "preferGlobal": true,
   "files": [
-    "/bin"
+    "/bin",
+    "/lib"
   ],
   "keywords": [
     "oclif",
     "artifactory"
   ],
   "license": "ISC",
-  "main": "src/index.ts",
+  "main": "lib/index.js",
   "oclif": {
     "bin": "lock-check"
   }
