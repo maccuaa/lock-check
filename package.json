@@ -1,7 +1,7 @@
 {
   "name": "@maccuaa/lock-check",
   "description": "Verify that all the packages in your package-lock.json file exist",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": "Andrew MacCuaig <andrewmaccuaig@gmail.com>",
   "bugs": "https://github.com/maccuaa/lock-check/issues",
   "homepage": "https://github.com/maccuaa/lock-check",
