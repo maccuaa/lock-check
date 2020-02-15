@@ -7,7 +7,7 @@ This tool is for when you're using a repository other than NPM such as Artifacto
 
 [![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
 [![Version](https://badgen.net/npm/v/@maccuaa/lock-check)](https://npmjs.org/package/@maccuaa/lock-check)
-[![Bundle Size](https://badgen.net/bundlephobia/minzip/@maccuaa/lock-check)](https://npmjs.org/package/@maccuaa/lock-check)
+[![Bundle Size](https://badgen.net/bundlephobia/minzip/@maccuaa/lock-check)](https://npmjs.org/package/@maccuaa/lock-check) [![Greenkeeper badge](https://badges.greenkeeper.io/maccuaa/lock-check.svg)](https://greenkeeper.io/)
 
 <!-- toc -->
 
