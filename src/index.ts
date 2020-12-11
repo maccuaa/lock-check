@@ -41,23 +41,29 @@ class LockCheck extends Command {
       char: "d",
       description:
         "Attempt to download all the tgz files found in package-lock.json",
-      default: false
+      default: false,
     }),
 
     registry: flags.string({
       char: "r",
-      description: "Override the registry to use."
+      description: "Override the registry to use.",
     }),
 
-    help: flags.help({ char: "h" })
+    credentials: flags.string({
+      char: "u",
+      description:
+        "Provide your Artifactory credentials so that the packages can be downloaded if any are corrupt. The credentials should be in the format: user:pass",
+    }),
+
+    help: flags.help({ char: "h" }),
   };
 
   static args = [
     {
       name: "dir",
       default: ".",
-      description: "The directory containing the package-lock.json file."
-    }
+      description: "The directory containing the package-lock.json file.",
+    },
   ];
 
   private registry: string | null = null;
@@ -150,18 +156,18 @@ class LockCheck extends Command {
           await fsa(filePath);
 
           ctx.packageLockPath = filePath;
-        }
+        },
       },
       {
         title: "Reading package-lock.json",
         skip: false,
         task: async (ctx: Context) => {
           ctx.packageLock = await import(ctx.packageLockPath);
-        }
+        },
       },
       {
         title: "Scanning package-lock.json",
-        skip: false,
+        skip: flags.download === true,
         task: async (ctx: Context, task: Task) => {
           return new Promise((resolve, reject) => {
             const { packageLock } = ctx;
@@ -204,7 +210,7 @@ class LockCheck extends Command {
 
             q.push(packages);
           });
-        }
+        },
       },
       {
         title: "Downloading packages...",
@@ -223,12 +229,32 @@ class LockCheck extends Command {
             let completed = 0;
             const total = packages.length;
 
-            const q = Async.queue(async (dependency: string) => {
+            const q = Async.queue(async (dependencyName: string) => {
               if (!spinner.isSpinning) {
                 spinner.start();
               }
               try {
-                await this.downloadPackage(dependency);
+                const { version } = packageLock.dependencies[dependencyName];
+
+                if (this.registry) {
+                  const packageName = dependencyName.startsWith("@")
+                    ? dependencyName.split("/")[1]
+                    : dependencyName;
+
+                  const url = `${this.registry}/${dependencyName}/-/${packageName}-${version}.tgz`;
+
+                  const args = [];
+
+                  if (flags.credentials) {
+                    args.push("-u", `'${flags.credentials}'`);
+                  }
+
+                  args.push(url);
+
+                  await execa("curl", args, { shell: true });
+                } else {
+                  await this.downloadPackage(dependencyName);
+                }
               } catch (e) {
                 throw e;
               } finally {
@@ -247,14 +273,14 @@ class LockCheck extends Command {
 
             q.push(packages);
           });
-        }
-      }
+        },
+      },
     ];
 
     const ctx = {
       projectPath: path.resolve(args.dir),
       packageLockPath: "",
-      packageLock: null
+      packageLock: null,
     };
 
     for (let task of tasks) {
