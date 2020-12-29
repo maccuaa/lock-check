@@ -17,7 +17,7 @@
     "@oclif/plugin-help": "3.2.1",
     "async": "3.2.0",
     "execa": "5.0.0",
-    "ora": "5.1.0"
+    "ora": "5.2.0"
   },
   "devDependencies": {
     "@types/async": "3.2.5",
