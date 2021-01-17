@@ -9,7 +9,7 @@ Run a local build pulling from the public NPM regristry (i.e. not configured to 
 This tool will:
 
 - Parse out the download links
-- Download those files using wget from the Artifactory repo you provide.
+- Download those files using curl from the Artifactory repo you provide.
 
 [![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
 [![Version](https://badgen.net/npm/v/@maccuaa/lock-check)](https://npmjs.org/package/@maccuaa/lock-check)
