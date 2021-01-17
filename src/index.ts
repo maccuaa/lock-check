@@ -1,8 +1,8 @@
 import { Command, flags } from "@oclif/command";
 import * as path from "path";
 import * as execa from "execa";
-import * as Ora from "ora";
 import * as Async from "async";
+import cli from "cli-ux";
 import fsa from "./fsa";
 
 interface PackageLock {
@@ -22,37 +22,26 @@ interface PackageLock {
 interface Context {
   projectPath: string;
   packageLockPath: string;
-  packageLock: PackageLock | null;
 }
 
 interface Task {
-  skip: boolean;
   title: string;
   task: (ctx: Context, task: Task) => Promise<void>;
 }
 
+const NPM_URL = "https://registry.npmjs.org";
+
 class LockCheck extends Command {
-  static description = "Verify the package-lock.json file in a project.";
+  static description =
+    "Download all the packages in your package-lock.json using an Artifactory repository.";
 
   static flags = {
     version: flags.version({ char: "v" }),
 
-    download: flags.boolean({
-      char: "d",
-      description:
-        "Attempt to download all the tgz files found in package-lock.json",
-      default: false,
-    }),
-
     registry: flags.string({
       char: "r",
-      description: "Override the registry to use.",
-    }),
-
-    credentials: flags.string({
-      char: "u",
-      description:
-        "Provide your Artifactory credentials so that the packages can be downloaded if any are corrupt. The credentials should be in the format: user:pass",
+      description: "The Artifactory registry to use.",
+      required: true,
     }),
 
     help: flags.help({ char: "h" }),
@@ -66,236 +55,88 @@ class LockCheck extends Command {
     },
   ];
 
-  private registry: string | null = null;
-
-  private useRegistry = (command: string) =>
-    this.registry ? `${command} --registry ${this.registry}` : command;
-
-  /**
-   * Verify that the tarball URL on the remote server ends with .tgz
-   *
-   * @private
-   * @memberof LockCheck
-   */
-  private checkRemoteURL = async (dep: string) => {
-    const { stdout: tarballUrl } = await execa.command(
-      this.useRegistry(`npm view ${dep} dist.tarball`)
-    );
-
-    if (!tarballUrl.endsWith(".tgz")) {
-      throw new Error(`Remote artifact corrupted - ${tarballUrl}`);
-    }
-  };
-
-  /**
-   * Verify that the resolved URL in the package-lock file ends with .tgz
-   *
-   * @private
-   * @memberof LockCheck
-   */
-  private checkLocalURL = (packageLock: PackageLock, dep: string) => {
-    const { dependencies } = packageLock;
-
-    const dependency = dependencies[dep];
-
-    if (!dependency) {
-      throw new Error(`${dep} not found in package-lock.json`);
-    }
-
-    const resolvedURL = dependency.resolved;
-
-    if (!resolvedURL.endsWith(".tgz")) {
-      throw new Error(
-        `package-lock entry does not end in .tgz - ${resolvedURL}`
-      );
-    }
-  };
-
-  /**
-   * Verify the local and remote dependency resolved URLs.
-   *
-   * @private
-   * @memberof LockCheck
-   */
-  private checkPackage = async (
-    packageLock: PackageLock,
-    dependency: string
-  ) => {
-    this.checkLocalURL(packageLock, dependency);
-
-    await this.checkRemoteURL(dependency);
-  };
-
-  /**
-   * Run the NPM pack command on a dependency. This will trigger a GET request for the package but will not write the contents to disk.
-   *
-   * @private
-   * @memberof LockCheck
-   */
-  private downloadPackage = async (dependency: string) => {
-    await execa.command(this.useRegistry(`npm pack --dry-run ${dependency}`));
-  };
-
   async run() {
     const { args, flags } = this.parse(LockCheck);
 
-    const spinner = Ora();
-
-    if (flags.registry) {
-      spinner.info(`Using registry ${flags.registry}`);
-      this.registry = flags.registry;
-    }
+    const username = await cli.prompt("Artifactory username", {
+      required: true,
+    });
+    const password = await cli.prompt("Artifactory password", {
+      required: true,
+      type: "hide",
+    });
 
     const tasks: Task[] = [
       {
-        title: "Looking for package-lock.json",
-        skip: false,
+        title: "🔎 Looking for package-lock.json",
         task: async (ctx: Context) => {
           const filePath = path.resolve(ctx.projectPath, "package-lock.json");
 
+          // make sure the file exists and the user can read it.
           await fsa(filePath);
 
           ctx.packageLockPath = filePath;
         },
       },
       {
-        title: "Reading package-lock.json",
-        skip: false,
-        task: async (ctx: Context) => {
-          ctx.packageLock = await import(ctx.packageLockPath);
-        },
-      },
-      {
-        title: "Scanning package-lock.json",
-        skip: flags.download === true,
+        title: "🔥 Downloading packages...",
         task: async (ctx: Context, task: Task) => {
-          return new Promise((resolve, reject) => {
-            const { packageLock } = ctx;
+          return new Promise(async (resolve) => {
+            // import the package-lock.json file
+            const packageLock: PackageLock = await import(ctx.packageLockPath);
 
-            if (packageLock === null) {
-              reject("packageLock is null");
-              return;
-            }
+            // Get the list of dependencies
+            const dependencies = Object.keys(packageLock.dependencies);
 
-            const packages = Object.keys(packageLock.dependencies);
+            // Get the total number of dependencies
+            const total = dependencies.length;
 
-            spinner.info(`Found ${packages.length} dependencies`);
+            // Create and start the progress bar
+            const progress = cli.progress();
+            progress.start(total, 0);
 
-            spinner.text = task.title;
-
-            let completed = 0;
-            const total = packages.length;
-
-            const q = Async.queue(async (dependency: string) => {
-              if (!spinner.isSpinning) {
-                spinner.start();
-              }
-              try {
-                await this.checkPackage(packageLock, dependency);
-              } catch (e) {
-                throw e;
-              } finally {
-                completed++;
-                spinner.text = `${task.title} - ${Math.round(
-                  (completed / total) * 100
-                )}%`;
-              }
-            }, 10);
-
-            q.error((err, task) => {
-              spinner.fail(`${task} - ${err}`);
-            });
-
-            q.drain(() => resolve());
-
-            q.push(packages);
-          });
-        },
-      },
-      {
-        title: "Downloading packages...",
-        skip: flags.download === false,
-        task: async (ctx: Context, task: Task) => {
-          return new Promise(async (resolve, reject) => {
-            const { packageLock } = ctx;
-
-            if (packageLock === null) {
-              reject("packageLock is null");
-              return;
-            }
-
-            const packages = Object.keys(packageLock.dependencies);
-
-            let completed = 0;
-            const total = packages.length;
-
+            // Create an Async queue for processing all the dependencies
             const q = Async.queue(async (dependencyName: string) => {
-              if (!spinner.isSpinning) {
-                spinner.start();
-              }
               try {
-                const { version } = packageLock.dependencies[dependencyName];
+                const { resolved } = packageLock.dependencies[dependencyName];
 
-                if (this.registry) {
-                  const packageName = dependencyName.startsWith("@")
-                    ? dependencyName.split("/")[1]
-                    : dependencyName;
+                const downloadURL = resolved.replace(NPM_URL, flags.registry);
 
-                  const url = `${this.registry}/${dependencyName}/-/${packageName}-${version}.tgz`;
+                const args = [];
 
-                  const args = [];
+                args.push("-u", `'${username}:${password}'`);
 
-                  if (flags.credentials) {
-                    args.push("-u", `'${flags.credentials}'`);
-                  }
+                args.push(downloadURL);
 
-                  args.push(url);
-
-                  await execa("curl", args, { shell: true });
-                } else {
-                  await this.downloadPackage(dependencyName);
-                }
+                await execa("curl", args, { shell: true });
               } catch (e) {
                 throw e;
               } finally {
-                completed++;
-                spinner.text = `${task.title} - ${Math.round(
-                  (completed / total) * 100
-                )}%`;
+                progress.increment();
               }
             }, 10);
 
-            q.error((err, task) => {
-              spinner.fail(`${task} - ${err}`);
+            q.drain(() => {
+              progress.stop();
+              resolve();
             });
 
-            q.drain(() => resolve());
-
-            q.push(packages);
+            q.push(dependencies);
           });
         },
       },
     ];
 
-    const ctx = {
+    const ctx: Context = {
       projectPath: path.resolve(args.dir),
       packageLockPath: "",
-      packageLock: null,
     };
 
     for (let task of tasks) {
-      if (task.skip) {
-        continue;
-      }
-
-      spinner.text = task.title;
-      spinner.start();
-
       try {
         await task.task(ctx, task);
-        spinner.succeed();
       } catch (e) {
-        spinner.fail();
+        console.error(e);
         break;
       }
     }

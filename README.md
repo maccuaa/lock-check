@@ -1,15 +1,19 @@
-lock-check
-==========
+# lock-check
 
-Verify that all the packages in your package-lock.json file exist.
+Download all the packages in your package-lock.json using an Artifactory repository.
 
-This tool is for when you're using a repository other than NPM such as Artifactory where packages can become corrupted or URLs mangled.
+Artifactory fails regularly on NPM integrity checks when pulling content down from remote repositories. Use this tool to get around the issue.
+
+Run a local build pulling from the public NPM regristry (i.e. not configured to use Artifactory), then run this tool.
+
+This tool will:
+
+- Parse out the download links
+- Download those files using wget from the Artifactory repo you provide.
 
 [![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
 [![Version](https://badgen.net/npm/v/@maccuaa/lock-check)](https://npmjs.org/package/@maccuaa/lock-check)
 [![Bundle Size](https://badgen.net/bundlephobia/minzip/@maccuaa/lock-check)](https://npmjs.org/package/@maccuaa/lock-check)
-
-<!-- toc -->
 
 # Install
 
@@ -17,15 +21,4 @@ This tool is for when you're using a repository other than NPM such as Artifacto
 npm i -g @maccuaa/lock-check
 ```
 
-# Usage
-
-```shell
-# Scan the current directory
-lock-check
-
-# Scan a different directory
-lock-check path/to/directory
-
-# Help
-lock-check --help
-```
+<!-- toc -->
